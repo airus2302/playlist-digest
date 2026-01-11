@@ -1,11 +1,11 @@
-# PRD — Playlist Digest (Web MVP, Remix)
+# PRD — Playlist Digest (Web MVP, React Router)
 
 > 한 줄: 유튜브 **재생목록(Playlist)**에 쌓인 영상을 “끝까지 시청”이 아니라 **요약 + 근거 + 1클릭 결정(보기/건너뛰기/날짜 지정)**으로 빠르게 정리하도록 돕는 서비스.
 
 - 문서 버전: v1.0
 - 기준일: 2026-01-12 (KST)
 - 상태: MVP 개발 착수용 **확정 PRD**
-- 기술 전제: **Remix(Web) + Worker(BullMQ) + Postgres + Redis**
+- 기술 전제: **React Router(Web) + Worker(BullMQ) + Postgres + Redis**
 
 ---
 
@@ -249,7 +249,7 @@
 
 ## 10) 기술/아키텍처 개요(요약)
 
-- Web: Remix (UI routes + Resource routes)
+- Web: React Router (UI routes + Resource routes)
 - Worker: BullMQ (meta → transcript → summary 파이프라인)
 - DB: Postgres
 - Cache/Queue: Redis
