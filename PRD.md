@@ -2,10 +2,16 @@
 
 > 한 줄: 유튜브 **재생목록(Playlist)**에 쌓인 영상을 “끝까지 시청”이 아니라 **요약 + 근거 + 1클릭 결정(보기/건너뛰기/날짜 지정)**으로 빠르게 정리하도록 돕는 서비스.
 
-- 문서 버전: v1.0
+- 문서 버전: v1.1
 - 기준일: 2026-01-12 (KST)
-- 상태: MVP 개발 착수용 **확정 PRD**
-- 기술 전제: **React Router(Web) + Worker(BullMQ) + Postgres + Redis**
+- 상태: MVP 개발 착수용 **확정 PRD (스택 업데이트 반영)**
+- 기술 전제(업데이트):
+  - **React Router(Web) + Worker(BullMQ)**
+  - **DB: Postgres / Queue: Redis**
+  - **ORM: Drizzle**
+  - **Auth: Supabase (단, Dev/Prod 분리 — Dev는 로컬 검증 우선)**
+  - **UI: shadcn/ui + base-ui + Tailwind CSS v4**
+  - **LLM: OpenAI SDK(OpenAI-compatible) + Local 모델은 baseUrl 변경 방식**
 
 ---
 
@@ -65,14 +71,14 @@
 - 단순 요약 서비스가 아니라 **결정 UX**가 제품의 핵심.
 - 결과물을 “읽고 끝”이 아니라 **행동(보기/건너뛰기/스케줄)**로 연결한다.
 - 유저별 프리셋 + 자동 카테고리로 시간이 갈수록 개인화된다.
-- 모델은 **Local 기본 + Remote 백업**으로 비용/프라이버시/안정성을 분산한다.
+- LLM은 **OpenAI-compatible**로 통일해서, 원격(OpenAI)과 로컬(호환 서버)을 **baseUrl 스위치**만으로 교체한다.
 
 ---
 
 ## 5) 범위(Scope)
 
 ### 5.1 MVP 포함
-- Google OAuth 로그인
+- (Auth) 로그인/세션 (Supabase 기반, Dev/Prod 분리)
 - 온보딩(재생목록 규모 입력, 기본 언어/프리셋 설정)
 - URL 단일/일괄 추가
 - 영상 메타 수집(title/channel/duration/thumbnail)
@@ -96,7 +102,7 @@
 ## 6) 핵심 사용자 플로우
 
 ### 6.1 첫 가치 체감(60초 플로우)
-1) 로그인(Google)
+1) 로그인
 2) 온보딩에서 “재생목록 규모(대략)” 입력 (선택)
 3) URL 1개 추가
 4) 요약 카드 생성(READY)
@@ -111,11 +117,22 @@
 
 ## 7) 기능 요구사항(Functional Requirements)
 
-### 7.1 인증/계정
-- Google OAuth 로그인
-- 사용자 기본 설정:
-  - 언어 모드: `original | ko | bilingual`
-  - 모델 모드: `local` 기본, `remote`는 백업
+### 7.1 인증/계정 (Supabase, Dev/Prod 분리)
+**요구사항**
+- 인증 제공자는 Supabase로 통일하되, **초기 개발은 로컬에서 기능 검증이 먼저** 진행된다.
+- 이를 위해 **Auth 어댑터 레이어**를 둔다.
+
+**환경별 동작**
+- **DEV(로컬 검증 단계)**  
+  - `AUTH_PROVIDER=dev`  
+  - “개발용 로그인(DevAuth)” 제공: 예) `/dev/login`에서 이메일 입력 → 서버가 세션 발급(단순화)  
+  - 목적: Supabase 구성 전에도 핵심 플로우(추가/요약/결정/대시보드)를 끝까지 검증
+- **PROD(Supabase 적용)**  
+  - `AUTH_PROVIDER=supabase`  
+  - Supabase Auth로 로그인/세션/사용자 프로필 획득
+  - 사용자 식별자는 `supabase_user_id`(uuid) 기반으로 DB 스코핑
+
+> 구현상 `getCurrentUser()` 같은 공통 인터페이스에 Dev/Supabase 구현체를 연결한다.
 
 ### 7.2 영상 추가
 - 단일 URL 추가
@@ -136,8 +153,17 @@
 - `ENABLE_UNOFFICIAL_TRANSCRIPT=false` 기본  
 - MVP 기본 경로는 PASTE만으로도 가치가 전달되게 UX를 최적화한다.
 
-### 7.5 요약 생성
-- 요약 결과는 **고정 JSON 스키마**를 반드시 만족해야 저장:
+### 7.5 요약 생성(LLM: OpenAI-compatible, baseUrl 스위치)
+- **OpenAI SDK를 사용하되, “OpenAI-compatible 서버”로 교체 가능한 형태**로 구현한다.
+- 환경 변수(예시):
+  - `LLM_API_KEY`
+  - `LLM_BASE_URL` (기본: OpenAI, 로컬 모델은 여기만 변경)
+  - `LLM_MODEL` (예: gpt-4.1-mini 등)
+- 로컬 모델 사용 방식:
+  - 로컬에서 OpenAI 호환 서버를 띄운 뒤(`baseUrl=http://localhost:xxxx/v1`)
+  - 같은 클라이언트로 호출(키/모델만 환경별 설정)
+
+#### 고정 JSON 스키마(저장 전 검증 필수)
 ```json
 {
   "bullets": ["", "", "", "", ""],
@@ -147,6 +173,7 @@
   "outputLanguage": "original|ko|bilingual"
 }
 ```
+
 - 스키마 불일치 시 자동 재시도 **최대 3회**
 - 요약 성공 시:
   - `UserVideo.status = READY`
@@ -199,11 +226,11 @@
 - 잡 모니터:
   - 실패 사유 Top N
   - 평균 처리 시간(p50/p95)
-  - provider 비율(LOCAL/REMOTE)
+  - endpoint 비율(OPENAI vs LOCAL_BASEURL)
   - transcript sourceType 비율(PASTE/UNOFFICIAL)
 - 운영 토글:
   - ENABLE_UNOFFICIAL_TRANSCRIPT
-  - REMOTE_BACKUP_ENABLED
+  - REMOTE_BACKUP_ENABLED (의미: baseUrl fallback을 켤지 여부)
 
 ---
 
@@ -219,9 +246,9 @@
 - 실패는 명확한 `failReason`로 사용자에게 안내
 
 ### 8.3 보안/프라이버시
-- Local endpoint URL/token은 **암호화 저장**
 - 사용자 데이터는 `userId`로 엄격히 스코핑
 - 로그에 transcript 원문을 기본적으로 남기지 않음(옵션/마스킹 정책)
+- (변경) 사용자별 endpoint를 저장하는 요구가 생기면 v1 이후로 이관
 
 ### 8.4 데이터 보관 정책
 - MVP: transcript/summary **영구 저장**
@@ -245,41 +272,60 @@
 - `/admin` Admin Home (Admin)
 - `/admin/users/:id` Admin User (Admin)
 
+> DevAuth 사용 시에만:
+- `/dev/login` Dev Login (Dev only)
+
 ---
 
-## 10) 기술/아키텍처 개요(요약)
+## 10) 기술/아키텍처 개요(업데이트)
 
-- Web: React Router (UI routes + Resource routes)
-- Worker: BullMQ (meta → transcript → summary 파이프라인)
+### 10.1 Web / UI
+- React Router
+- UI 컴포넌트: **shadcn/ui + base-ui**
+- 스타일: **Tailwind CSS v4**
+
+### 10.2 Data Layer
 - DB: Postgres
-- Cache/Queue: Redis
-- 모델:
-  - Local 기본(provider: 사용자 endpoint)
-  - Remote 백업(옵션)
+- ORM: **Drizzle**
+- Migration: Drizzle migrations(권장)
+
+### 10.3 Auth
+- PROD: Supabase Auth
+- DEV: DevAuth(로컬 검증용) → 검증 완료 후 Supabase로 전환
+
+### 10.4 Worker
+- BullMQ(메타/요약 파이프라인)
+- Redis
+
+### 10.5 LLM
+- OpenAI SDK + OpenAI-compatible endpoint
+- `LLM_BASE_URL`로 OpenAI ↔ Local을 스위칭
 
 ---
 
-## 11) 릴리즈 플랜(권장)
+## 11) 릴리즈 플랜(권장, Dev/Prod 분리 포함)
 
-### v0.1 (MVP)
+### v0.1 (로컬 검증 MVP)
+- DevAuth + 로컬 Postgres/Redis
 - URL 추가 → PASTE transcript → 요약 → 결정 → KPI
 - 프리셋/카테고리/어드민 최소 세트
 
-### v0.2
-- URL 일괄 추가 UX 개선
-- 스케줄 알림(이메일/푸시/슬랙 중 1개)
-- 카테고리 병합 추천(자동 제안)
+### v0.2 (Prod 인프라 적용)
+- Supabase Auth 연결(Prod)
+- 배포 파이프라인 및 환경 분리(.env.dev / .env.prod)
+- 운영 토글/로그 강화
 
 ### v1.0
 - 확장 프로그램(원클릭 URL 추가)
 - 결제/구독/충전 결제 연동
-- 더 강한 개인화(우선순위/추천)
+- 개인화(우선순위/추천)
 
 ---
 
-## 12) 오픈 이슈 / 추후 결정 사항(보류)
+## 12) 오픈 이슈 / 추후 결정 사항(업데이트)
 
-- Remote 백업 사용 조건(Timeout만 vs InvalidSummary 포함)
+- Supabase를 DEV에서도 쓸지(예: Supabase CLI) vs DevAuth 유지
+- Remote 백업 정의(현재는 baseUrl fallback)
 - Summary 버저닝(overwrite vs version table)
 - 이벤트 스키마(원가 추정: 토큰/latency) 범위
 
