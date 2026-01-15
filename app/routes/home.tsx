@@ -46,9 +46,14 @@ export default function Home() {
            </p>
            <div className="flex justify-center gap-4">
              {user ? (
-               <Button size="lg" asChild>
-                 <Link to="/videos/add">Add First Video</Link>
-               </Button>
+               <>
+                <Button size="lg" asChild>
+                  <Link to="/videos/add">Add First Video</Link>
+                </Button>
+                <Button size="lg" asChild>
+                  <Link to="/dev">Dev</Link>
+                </Button>
+               </>
              ) : (
                <Button size="lg" asChild>
                  <Link to="/dev/login">Get Started for Free</Link>
