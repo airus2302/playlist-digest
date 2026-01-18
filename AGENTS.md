@@ -1,160 +1,122 @@
-# AGENTS.md - Development Guidelines for playlist-digest
+# AGENTS.md — Guidance for Agentic Work on playlist-digest
 
-This document provides guidelines for agentic coding agents working in this React Router 7 project.
+This file instructs coding agents working in this repository. Follow these rules for all changes unless a more specific AGENTS file appears deeper in the tree (none exist today).
 
-## Project Overview
+## Stack Snapshot
+- Framework: React Router 7 (full-stack, SSR enabled)
+- Build tool: Vite 7.1.7
+- Language: TypeScript (strict, `verbatimModuleSyntax`)
+- Styling: TailwindCSS v4 (CSS-first) + shadcn/ui, tw-animate-css
+- Runtime: Node.js SSR server via `react-router-serve`
+- Package manager: npm (package-lock.json present)
 
-- **Framework**: React Router 7 (full-stack React framework)
-- **Language**: TypeScript (strict mode enabled)
-- **Styling**: TailwindCSS v4 (CSS-first configuration) + shadcn/ui
-- **Build Tool**: Vite 7.1.7
-- **Runtime**: Node.js server-side rendering enabled
-
-## Commands
-
-### Development
+## Commands (npm)
 ```bash
-npm run dev          # Start development server with HMR
-npm run build        # Build for production
-npm run start        # Serve production build
-npm run typecheck    # Run type generation and TypeScript compiler
+npm run dev       # React Router dev server (HMR)
+npm run build     # Production build (react-router build)
+npm run start     # Serve build/server/index.js (SSR)
+npm run typecheck # react-router typegen + tsc
 ```
+- No lint command configured (ESLint/Prettier absent).
+- No test command configured (Vitest/Playwright/Jest absent); **single-test runs are unavailable** until a framework is added.
 
-### Testing
-*No testing framework is currently configured. If tests are needed, add Vitest or Playwright first.*
+## Repository Landmarks
+- `app/root.tsx` — document shell, `<Layout>`, `<ErrorBoundary>` pattern.
+- `app/routes.ts` — central RouteConfig (`index`, `route`).
+- `app/routes/home.tsx` — marketing/landing route with loader-auth check.
+- `app/routes/dev.tsx` + `app/routes/dev.server.ts` — summarize UI + loader defaults.
+- `app/routes/api.summarize.ts` — action-only resource route (no UI).
+- `app/app.css` — Tailwind v4 setup, theme tokens, dark variant.
 
-## Code Style Guidelines
+## Routing Rules
+- Place route files in `app/routes/`; register in `app/routes.ts` using `index()`/`route()`.
+- Default export: route component. Use named `meta`/`loader`/`action` as needed.
+- Import generated types from `./+types/<route-name>` (e.g., `import type { Route } from "./+types/home"`).
+- Resource routes return `null` components and use `data()` helpers for responses.
 
-### File Structure & Organization
-- **Routes**: Place route components in `app/routes/`
-- **Components**: Use feature-based organization (e.g., `app/welcome/`)
-- **Route Registration**: Update `app/routes.ts` using the `RouteConfig` pattern
-- **Types**: React Router generates types in `.react-router/types/` - import from `+types/filename`
+## TypeScript & Imports
+- Strict TS enforced via `tsconfig.json`.
+- Path alias: `~/*` → `app/*` (use instead of relative climbing when appropriate).
+- Use `import type` for types; keep value imports separate when necessary.
+- `jsx: react-jsx`; do not import React unless needed for types.
+- Prefer explicit named imports; avoid wildcard imports.
 
-### Import Patterns
-```typescript
-// React Router imports
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
-import type { Route } from "./+types/route-filename";
+## Error Handling
+- Use React Router `isRouteErrorResponse` in ErrorBoundaries to distinguish 404s vs generic errors.
+- In dev, surfacing stack traces is acceptable (`import.meta.env.DEV`).
+- For actions/loaders, return structured errors with status codes (see `api.summarize.ts`). Avoid swallowing errors; map to user-friendly messages.
 
-// Asset imports (handled by Vite)
-import logoDark from "./logo-dark.svg";
-import component from "../feature/component";
+## Data Loading & Actions
+- Use loaders/actions for server data and mutations; keep UI components presentational when possible.
+- For background form submissions, use `useFetcher` (pattern in `dev.tsx`).
+- Validate inputs server-side; return field-level errors in a typed shape (see `SummarizeActionData`).
+- Avoid browser-only APIs in loaders/actions; guard SSR-sensitive code.
 
-// Always use type imports for types
-import type { SomeType } from "./types";
-```
+## Styling & UI
+- CSS imports (already in `app/app.css`):
+  - `@import "tailwindcss";`
+  - `@import "tw-animate-css";`
+  - `@import "shadcn/tailwind.css";`
+  - `@import "@fontsource-variable/noto-sans";`
+- Theme tokens defined with `@theme` and `@theme inline`; dark mode via `@custom-variant dark` and `.dark` overrides.
+- Prefer Tailwind utilities in JSX; leverage shadcn/ui components from `~/components/ui/*`.
+- Keep UI SSR-safe (no direct `window`/`document` without guards).
 
-### Component Patterns
-```typescript
-// Route component with metadata
+## Component Patterns
+```ts
 export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "Page Title" },
-    { name: "description", content: "Page description" },
-  ];
+  return [{ title: "Title" }, { name: "description", content: "..." }];
 }
 
-// Default export for the main component
+export async function loader({ request }: Route.LoaderArgs) {
+  // server data
+}
+
 export default function RouteComponent() {
-  return <div>Content</div>;
-}
-
-// Named exports for utilities
-export function loader({ request }: Route.LoaderArgs) {
-  // Data loading logic
+  return <main>...</main>;
 }
 ```
+- Use `LinksFunction` for global links when needed (fonts, preconnects) as in `root.tsx`.
+- Keep components functional; define props interfaces for complex inputs.
 
-### TypeScript Configuration
-- **Strict mode**: Enabled in `tsconfig.json`
-- **Path aliases**: Use `~/*` for `app/*` imports
-- **JSX**: `react-jsx` transform (no need to import React)
-- **Module syntax**: ESM with `verbatimModuleSyntax: true`
+## Naming Conventions
+- Files: kebab-case (routes), PascalCase for components when outside routes.
+- Components: PascalCase; hooks/utilities: camelCase; constants: UPPER_SNAKE_CASE.
+- Directories: lowercase; feature folders encouraged for shared UI.
 
-### Styling Guidelines
-- **Primary**: Use TailwindCSS utility classes + shadcn/ui components
-- **Theme**: Inter font, light/dark mode support with CSS variables
-- **CSS imports**: Use `@import "tailwindcss";` and `@import "shadcn/tailwind.css";` in CSS files
-- **Responsive**: Mobile-first approach with Tailwind breakpoints
-- **Dark mode**: Use `dark:` prefixes for dark mode variants
-- **shadcn/ui**: Use pre-built components from `app/components/ui/` with consistent theming
+## Formatting & Linting
+- No formatter configured; preserve existing style (2-space JSX indentation common from Tailwind class wrapping).
+- Keep imports ordered: external → internal alias `~/` → relative.
+- Do not add `@ts-ignore`/`as any`.
 
-### Naming Conventions
-- **Files**: kebab-case for general files, PascalCase for components
-- **Components**: PascalCase (e.g., `Welcome`, `PlaylistDigest`)
-- **Functions**: camelCase for regular functions, PascalCase for components
-- **Constants**: UPPER_SNAKE_CASE for exported constants
-- **Directories**: lowercase (e.g., `routes`, `welcome`, `components`)
+## Performance & Accessibility
+- Prefer code splitting for large UI segments when needed (React.lazy or route-level splitting).
+- Use semantic HTML and ARIA labels on interactive elements.
+- Favor server-side validation; avoid heavy client computation in loaders/actions.
 
-### Error Handling
-Use React Router's ErrorBoundary pattern with isRouteErrorResponse for 404s and error handling.
+## Environment & Secrets
+- `.env` values are required for LLM providers (see `dev.tsx` hints) but this file does not enumerate secrets; consult feature docs before changing env usage.
+- Do not log secrets; avoid committing `.env`.
 
-### State Management
-- **Server state**: Use React Router loaders/actions
-- **Client state**: Use React hooks (useState, useEffect, useContext)
-- **URL state**: Use search params for shareable state
-- **Form state**: Use React Router's Form component and useFetcher
+## Database / Queue
+- Drizzle ORM and BullMQ are dependencies; follow existing patterns if touching these areas (none shown in inspected files). Avoid schema/tooling changes without confirmation.
 
-### Performance & Security
-- **Code splitting**: Use dynamic imports for large components
-- **Accessibility**: Use semantic HTML and ARIA attributes
-- **Security**: React Router auto-escapes content, validate input on both client and server
+## Tests & Single-Test Guidance
+- There is **no** test runner configured; single-test execution is impossible until one is added.
+- If you add Vitest, prefer `vitest run path/to/file.test.ts --filter "name"` for single cases; document the command when you add it.
 
-## Development Workflow
+## Contribution Workflow for Agents
+- Before commits: run `npm run typecheck` (runs typegen + tsc).
+- Keep changes minimal and scoped; do not introduce new dependencies unless requested.
+- When adding routes: update `app/routes.ts`, add `meta`, and ensure types import from `+types/...`.
+- When adjusting UI: respect Tailwind/shadcn patterns and theme tokens.
+- When handling errors: return structured `data()` responses with status codes.
 
-### Adding shadcn/ui Components
-```bash
-npx shadcn@latest add [component-name]
-```
-Components are added to `app/components/ui/` and can be imported with:
-```typescript
-import { Button } from "~/components/ui/button";
-```
+## AI Assistant Rules
+- No Cursor rule files or GitHub Copilot instruction files were found.
+- Default to the guidance in this document; if new AI policy files are added later, obey the most specific one in scope.
 
-### Adding New Routes
-1. Create component file in `app/routes/`
-2. Add route to `app/routes.ts` using `RouteConfig` pattern
-3. Export `meta` function for SEO metadata
-4. Add loader/action functions if data handling is needed
-
-### Styling New Components
-1. Use Tailwind utility classes directly in JSX
-2. Leverage dark mode variants with `dark:` prefix
-3. Use responsive prefixes (`sm:`, `md:`, `lg:`, `xl:`)
-4. Follow mobile-first responsive design
-
-### Type Safety
-- Always import generated types from `+types/filename`
-- Use `type` imports for type-only imports
-- Enable strict TypeScript checking
-- Run `npm run typecheck` before committing
-
-### Best Practices
-- Prefer functional components with hooks
-- Define prop interfaces for complex components
-- Use error boundaries for route-level error handling
-- Leverage React Router's pending states for better UX
-
-## Tools & Configuration
-
-### Linting/Formatting
-*No linting tools are currently configured. Consider adding ESLint and Prettier.*
-
-## Deployment
-
-### Production Build
-```bash
-npm run build    # Creates build/ directory
-npm run start    # Serves production build
-```
-
-## Notes for Agents
-
-1. **No existing linting**: Be extra careful with code consistency
-2. **React Router 7 patterns**: Follow framework conventions, not generic React patterns  
-3. **Type safety**: TypeScript is strict - ensure all types are properly defined
-4. **SSR enabled**: Code must work in both browser and Node.js environments
-5. **No test framework**: Set up Vitest or Playwright if tests are needed
-
-Follow patterns in `app/root.tsx`, `app/routes/home.tsx`, and welcome component.
+## When in Doubt
+- Follow patterns in `app/root.tsx`, `app/routes/home.tsx`, `app/routes/dev.tsx`, `app/routes/api.summarize.ts`.
+- Ask for clarification before introducing tooling or architectural shifts.
+- Keep SSR compatibility in mind for any new code.

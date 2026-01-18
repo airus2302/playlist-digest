@@ -1,6 +1,8 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
-import { Button } from "~/components/ui/button";
+import { buttonVariants } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 import { auth } from "~/services/auth/index.server";
+import type { Route } from "./+types/home";
 
 export function meta() {
   return [
@@ -23,13 +25,13 @@ export default function Home() {
          <h1 className="font-bold text-xl">Playlist Digest</h1>
          <nav>
            {user ? (
-             <Button asChild variant="outline">
-               <Link to="/dashboard">Go to Dashboard</Link>
-             </Button>
+             <Link to="/dashboard" className={cn(buttonVariants({ variant: "outline" }))}>
+               Go to Dashboard
+             </Link>
            ) : (
-             <Button asChild>
-               <Link to="/dev/login">Sign In</Link>
-             </Button>
+             <Link to="/login" className={cn(buttonVariants())}>
+               Sign In
+             </Link>
            )}
          </nav>
       </header>
@@ -47,17 +49,17 @@ export default function Home() {
            <div className="flex justify-center gap-4">
              {user ? (
                <>
-                <Button size="lg" asChild>
-                  <Link to="/videos/add">Add First Video</Link>
-                </Button>
-                <Button size="lg" asChild>
-                  <Link to="/dev">Dev</Link>
-                </Button>
+                <Link to="/videos/add" className={cn(buttonVariants({ size: "lg" }))}>
+                  Add First Video
+                </Link>
+                {/* <Link to="/dev" className={cn(buttonVariants({ size: "lg" }))}>
+                  Dev
+                </Link> */}
                </>
              ) : (
-               <Button size="lg" asChild>
-                 <Link to="/dev/login">Get Started for Free</Link>
-               </Button>
+               <Link to="/login" className={cn(buttonVariants({ size: "lg" }))}>
+                 Get Started for Free
+               </Link>
              )}
            </div>
         </section>
